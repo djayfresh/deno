@@ -1,5 +1,5 @@
 // Import the latest major version of the MongoDB driver
-import { Db, MongoClient } from "@mongodb";
+import { Db, MongoClient, ObjectId } from "../utility/mongodb.ts";
 import { env } from "../env/environment.ts";
 
 export class DBContext {
@@ -42,9 +42,18 @@ export class DBContext {
         if (!this.isConnected()) {
             await this.open();
         }
-        
+
         const collection = this.db?.collection(name);
         console.log("Loaded Collection:", name);
         return collection;
+    }
+
+    static toId(id: string) {
+        try {
+            return new ObjectId(id);
+        }
+        catch {
+            throw new Error(`"${id}" is not a valid MongoId`);
+        }
     }
 }

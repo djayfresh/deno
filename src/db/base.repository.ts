@@ -1,7 +1,8 @@
-import { BulkWriteOptions, Collection, Document, Filter, FindCursor, FindOptions, OptionalUnlessRequiredId, UpdateFilter, UpdateOptions, WithId } from "@mongodb";
+import { BulkWriteOptions, Collection, Document, Filter, FindOptions, OptionalUnlessRequiredId, UpdateFilter, UpdateOptions } from "../utility/mongodb.ts";
 import { DBContext } from "./mongo.ts";
 import { userId } from "../models/user.model.ts";
 import { DBModel } from "../models/db.model.ts";
+import { mongoId } from "../models/id.model.ts";
 
 export abstract class BaseRepository<T extends Document> {
     protected _collection: Collection<T> | undefined;
@@ -19,17 +20,31 @@ export abstract class BaseRepository<T extends Document> {
         }
     }
 
-    protected async collection() {
+    protected async collection(): Promise<Collection<T>> {
         await this.open();
-        return this._collection;
+        return this._collection as Collection<T>;
+    }
+    
+    getById(id: mongoId) {
+        return this.findOne({ _id: DBContext.toId(id) });
+    }
+    
+    getByIds(ids: mongoId[]) {
+        return this.findOne({ _id: { $in: ids.map(id => DBContext.toId(id)) } });
     }
 
-    async find(query: Filter<T>, options?: FindOptions): Promise<FindCursor<WithId<DBModel<T>>> | undefined> {
-        return (await this.collection())?.find(query, options);
+    async find(query: Filter<T>, options?: FindOptions): Promise<DBModel<T>[]> {
+        const cursor = (await this.collection()).find(query, options);
+        const results = await cursor.toArray();
+        return results.map(result => {
+            return this.map(result) as DBModel<T>;
+        });
     }
 
-    async findOne(query: Filter<T>, options?: FindOptions): Promise<WithId<DBModel<T>> | undefined> {
-        return (await this.collection())?.findOne(query, options);
+    async findOne(query: Filter<T>, options?: FindOptions): Promise<DBModel<T> | undefined> {
+        return (await this.collection()).findOne(query, options).then(result => {
+            return this.map(result);
+        });
     }
 
     async insert(data: T, auditUserId: userId, options?: UpdateOptions) {
@@ -39,17 +54,27 @@ export abstract class BaseRepository<T extends Document> {
             _ts: Date.now()
         };
 
-        return (await this.collection())?.insertOne(insert, options);
+        return (await this.collection()).insertOne(insert, options).then(result => {
+            insert._id = result.insertedId.toString();
+            return this.map(insert);
+        });
     }
 
-    async insertMany(data: T[], auditUserId: userId, options?: BulkWriteOptions) {
-        const insert: OptionalUnlessRequiredId<T>[] = data.map(item => { return {
-            ...item,
-            _u: auditUserId,
-            _ts: Date.now()
-        } });
+    async insertMany(data: T[], auditUserId: userId, options?: BulkWriteOptions): Promise<DBModel<T>[]> {
+        const insert: OptionalUnlessRequiredId<T>[] = data.map(item => { 
+            return {
+                ...item,
+                _u: auditUserId,
+                _ts: Date.now()
+            } 
+        });
 
-        return (await this.collection())?.insertMany(insert, options);
+        return (await this.collection()).insertMany(insert, options).then(results => {
+            return insert.map((raw, index) => {
+                raw._id = results.insertedIds[index];
+                return this.map(raw) as DBModel<T>;
+            });
+        });
     }
 
     async updateOne(query: Filter<T>, data: T, auditUserId: userId, options?: UpdateOptions) {
@@ -61,7 +86,9 @@ export abstract class BaseRepository<T extends Document> {
             }
         };
 
-        return (await this.collection())?.updateOne(query, update, options);
+        return (await this.collection()).updateOne(query, update, options).then(() => {
+            return this.findOne(query);
+        });
     }
 
     async updateMany(query: Filter<T>, data: T, auditUserId: userId, options?: UpdateOptions) {
@@ -73,6 +100,15 @@ export abstract class BaseRepository<T extends Document> {
             }
         };
 
-        return (await this.collection())?.updateMany(query, update, options);
+        return (await this.collection()).updateMany(query, update, options).then(() => {
+            return this.find(query)
+        });
+    }
+
+    protected map(baseDocument: T | null) : DBModel<T> | undefined {
+        return baseDocument? {
+            ...baseDocument,
+            _id: baseDocument?._id.toString() as mongoId,
+        } : undefined;
     }
 }

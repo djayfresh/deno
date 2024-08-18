@@ -1,4 +1,4 @@
-import "@std/dotenv/load";
+import "jsr:@std/dotenv@^0.225.0/load";
 
 export const loadEnv = Deno.env.toObject();
 // console.log("loaded:", loadEnv);
