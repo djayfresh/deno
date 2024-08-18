@@ -7,6 +7,7 @@ export const env = {
     DB_HOST: loadEnv.DB_HOST,
     DB_NAME: loadEnv.DB_NAME,
     DB_USER: loadEnv.DB_USER,
-    DB_PASS: loadEnv.DB_PASS
+    DB_PASS: loadEnv.DB_PASS,
+    DB_PORT: loadEnv.DB_PORT
 };
 // console.log("env:", env);
