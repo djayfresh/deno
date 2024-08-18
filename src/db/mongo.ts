@@ -16,13 +16,8 @@ export class DBContext {
         }
 
         // Configure a MongoDB client
-        const url = `mongodb://${env.DB_HOST}:27017`;
-        this.CLIENT = new MongoClient(url, {
-            auth: {
-                username: env.DB_USER,
-                password: env.DB_PASS
-            }
-        });
+        const url = `mongodb://${env.DB_USER}:${env.DB_PASS}@${env.DB_HOST}:27017`;
+        this.CLIENT = new MongoClient(url);
         
         // Connect to a MongoDB instance
         await this.CLIENT.connect();

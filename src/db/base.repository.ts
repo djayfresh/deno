@@ -5,19 +5,22 @@ import { DBModel } from "../models/db.model.ts";
 import { mongoId } from "../models/id.model.ts";
 
 export abstract class BaseRepository<T extends Document> {
-    protected _collection: Collection<T> | undefined;
+    protected _collection: Collection<T> | undefined | null;
+    private _collectionPromise: Promise<void> | null = null;
     //protected _collectionAudit: Collection<T & DBAuditModel> | undefined;
 
     constructor(private collectionName: string) {
         this.open();
     }
 
-    protected async open() {
-        if (!this._collection) {
-            await DBContext.getCollection(this.collectionName).then(collection => {
+    protected open() {
+        if (!this._collectionPromise) {
+            this._collection = null;
+            this._collectionPromise = DBContext.getCollection(this.collectionName).then(collection => {
                 this._collection = collection;
             });
         }
+        return this._collectionPromise;
     }
 
     protected async collection(): Promise<Collection<T>> {
